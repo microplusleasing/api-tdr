@@ -4,6 +4,8 @@ import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
 import { MasterDataModule } from './database/master-data/master-data.module';
+import { TdrAssessmentModule } from './database/tdr-assessment/tdr-assessment.module';
+import { LoggerModule } from './common/logger/logger.module';
 
 const stage = process.env.STAGE;
 
@@ -19,6 +21,8 @@ if (!stage) {
     }),
     DatabaseModule,
     MasterDataModule,
+    TdrAssessmentModule,
+    LoggerModule,
     // DynamicFormModule,
   ],
   controllers: [AppController],

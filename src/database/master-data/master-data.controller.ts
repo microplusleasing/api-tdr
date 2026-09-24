@@ -4,7 +4,7 @@ import { MasterDataService } from './master-data.service';
 import {
     MasterDataResponseDto,
     MotorcyclePhotoTypeDto,
-    RestructureReasonDto,
+    RestructureReasonMasterDataDto,
 } from './dto/master-data.dto';
 
 @ApiTags('Master Data')
@@ -49,10 +49,9 @@ export class MasterDataController {
     @ApiResponse({
         status: 200,
         description: 'Restructure reasons retrieved successfully.',
-        type: [RestructureReasonDto],
+        type: [RestructureReasonMasterDataDto],
     })
-    async getRestructureReasons(): Promise<RestructureReasonDto[]> {
+    async getRestructureReasons(): Promise<RestructureReasonMasterDataDto[]> {
         return this.masterDataService.getRestructureReasonsDisplay();
     }
-
 }

@@ -4,9 +4,9 @@ import { MasterDataService } from './master-data.service';
 import { DatabaseModule } from '../database.module';
 
 @Module({
-    imports: [DatabaseModule],
-    controllers: [MasterDataController],
-    providers: [MasterDataService],
-    exports: [MasterDataService]
+  imports: [DatabaseModule],
+  controllers: [MasterDataController],
+  providers: [MasterDataService],
+  exports: [MasterDataService],
 })
 export class MasterDataModule {}
