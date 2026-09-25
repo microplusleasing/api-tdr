@@ -78,7 +78,7 @@ export interface ProductInformation {
 
   currentMileage: string;
 
-  motorcyclePhotos: MotorcyclePhoto[];
+  motorcyclePhoto: MotorcyclePhoto[];
 }
 
 export interface VehicleUserAddress {

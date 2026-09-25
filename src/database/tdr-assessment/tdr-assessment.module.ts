@@ -5,6 +5,8 @@ import { TdrAssessmentService } from './tdr-assessment.service';
 import { TdrAssessmentRepository } from './repositories/tdr-assessment.repository';
 import { TdrAssessmentMasterValidator } from './validators/tdr-assessment-master.validator';
 import { TdrAssessmentContractValidator } from './validators/tdr-assessment-contract.validator';
+import { TdrAssessmentRequestValidator } from './validators/tdr-assessment-request.validator';
+import { TdrAssessmentFileValidator } from './validators/tdr-assessment-file.validator';
 import { FileLoggerService } from '../../common/logger/file-logger.service';
 import { FileStorageModule } from '../../common/file-storage/file-storage.module';
 import { DatabaseModule } from '../database.module';
@@ -17,7 +19,9 @@ import { DatabaseModule } from '../database.module';
     TdrAssessmentRepository,
     TdrAssessmentMasterValidator,
     TdrAssessmentContractValidator,
-    FileLoggerService
+    TdrAssessmentRequestValidator,
+    TdrAssessmentFileValidator,
+    FileLoggerService,
   ],
   exports: [TdrAssessmentService],
 })

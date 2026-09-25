@@ -1,0 +1,108 @@
+/**
+ * Example for the `data` field in Swagger UI.
+ * Must always be a payload that passes validation.
+ */
+export const TDR_ASSESSMENT_SWAGGER_EXAMPLE = {
+  customerInformation: {
+    contractNo: '110202206010013',
+    title: '001',
+    firstName: 'ณภัทร',
+    lastName: 'รอดเนียม',
+    citizenId: '1229900584011',
+    idCardAddress: {
+      postalCodeLookup: '110504',
+      houseNo: '309',
+      alley: '',
+      soi: '',
+      road: '',
+      postalCode: '10290',
+      subDistrict: 'ในคลองบางปลากด',
+      district: 'พระสมุทรเจดีย์',
+      province: 'สมุทรปราการ',
+    },
+    registeredAddressSameAsIdCard: true,
+    registeredAddress: {},
+    currentAddressSameAsIdCard: true,
+    currentAddress: {},
+    phoneNo: '0952483338',
+    maritalStatus: '2',
+    numberOfChildren: '2',
+    dependents: '1',
+    occupation: 'Programmer',
+    position: 'พนักงานประจำ',
+    jobDescription: 'งาน Office',
+    workplaceName: 'mpls leasing.co',
+    workplaceAddress: {
+      postalCodeLookup: '104002',
+      houseNo: '214',
+      road: 'เพชรเกษม',
+      postalCode: '10160',
+      subDistrict: 'บางแคเหนือ',
+      district: 'บางแค',
+      province: 'กรุงเทพฯ',
+      workplacePhone: '021143459',
+      workplaceDescription: 'ใหญ่โต อลังการ',
+    },
+    reference1: { name: 'พลวัต', phone: '0999999999', relationship: 'เพื่อน' },
+    reference2: { name: '', phone: '', relationship: '' },
+  },
+  productInformation: {
+    brand: '01',
+    model: '0001',
+    color: 'ดำ',
+    registrationNo: 'ปค1311',
+    vehicleUserType: 'VUS01',
+    additionalInfo: '',
+    currentUserName: 'สมปอง',
+    relationship: 'เพื่อน',
+    currentUserPhone: '0999999999',
+    currentCondition: '93/1 หมู่ 3 ซ.วัดใหญ่',
+    carUserAddress: { postalCodeLookup: '110504' },
+    currentMileage: '200000',
+    motorcyclePhoto: [
+      { photoType: '01', fileName: '01-รูปหน้ารถ.jpg' },
+      { photoType: '02', fileName: '02-รูปด้านข้าง.jpg' },
+    ],
+  },
+  estimateIncome: {
+    incomes: {
+      PRIMARY_INCOME: { amount: 25000, remark: null },
+      EXTRA_INCOME: { amount: 10000, remark: null },
+      BUSINESS_INCOME: { amount: 5000, remark: null },
+      INVESTMENT_INCOME: { amount: 2500, remark: null },
+      OTHER_INCOME: { amount: 500, remark: 'ขายกล้วยด่าง' },
+    },
+  },
+  estimatePayment: {
+    NECESSARY_EXPENSE: {
+      HOUSING_EXPENSE: { itemId: '6', amount: 3000, remark: null },
+      UTILITIES_EXPENSE: { itemId: '7', amount: 6000, remark: null },
+      FOOD_EXPENSE: { itemId: '8', amount: 2000, remark: null },
+      TRANSPORT_EXPENSE: { itemId: '9', amount: 6000, remark: null },
+      PERSONAL_FAMILY_EXPENSE: { itemId: '10', amount: 5000, remark: null },
+      EDUCATION_EXPENSE: { itemId: '11', amount: 1000, remark: null },
+      OTHER_EXPENSE_DESC: { itemId: '12', amount: 4000, remark: 'ค่าเช่าบ้าน' },
+    },
+    DEBT_OBLIGATION: {
+      HOUSING_LOAN_PAYMENT: { itemId: '13', amount: 3000, remark: null },
+      AUTO_LOAN_PAYMENT: { itemId: '14', amount: 1000, remark: null },
+      CREDIT_CARD_PAYMENT: { itemId: '15', amount: 2000, remark: null },
+      PERSONAL_LOAN_PAYMENT: { itemId: '16', amount: 6000, remark: null },
+      INFORMAL_LOAN_PAYMENT: { itemId: '17', amount: 4000, remark: null },
+      OTHER_DEBT_DESC: { itemId: '18', amount: 5000, remark: 'ค่าเทอมน้อง นศ' },
+    },
+  },
+  restructureReason: {
+    reasons: [
+      { reasonCode: 'R001', selected: true, otherReason: '' },
+      { reasonCode: 'R011', selected: true, otherReason: 'โดนฉ้อโกง' },
+    ],
+  },
+  documentAttachments: {
+    attachments: [
+      { attachmentCode: 'ID_CARD', attachmentTypeId: '1', files: [{}] },
+      { attachmentCode: 'HOUSE_REGISTRATION', attachmentTypeId: '2', files: [{}] },
+      { attachmentCode: 'SALARY_SLIP', attachmentTypeId: '3', files: null },
+    ],
+  },
+};

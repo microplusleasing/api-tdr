@@ -11,6 +11,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsRecordOf } from '../../../common/validators/is-record-of.decorator';
 
 
 // ============================================================
@@ -214,8 +215,13 @@ export class CustomerInformationDto {
 //
 // IMPORTANT:
 // Actual uploaded File is NOT placed inside this DTO.
-// The actual file comes through:
-// @UploadedFiles() files: Express.Multer.File[]
+// The binary comes through the multipart field `motorcyclePhoto`.
+// This DTO only describes it, so the API can check the JSON against the
+// files that were really attached:
+//
+//   photoType  -> which photo slot it is ("01", "02", ...). The attached file
+//                 must be named after it: "01.jpg", "02.png" ("01-front.jpg" also works).
+//   fileName   -> informational only, NOT compared with the attached file.
 //
 
 export class MotorcyclePhotoDto {
@@ -235,6 +241,19 @@ export class MotorcyclePhotoDto {
 // ============================================================
 
 export class VehicleUserAddressDto extends AddressDto {}
+
+/**
+ * Angular currently also sends `productInformation.documentAttachments`
+ * (a list of `{ attachmentTypeId }`). The real attachment data lives in the
+ * top-level `documentAttachments`, so this is accepted and ignored.
+ * It can be removed from the Angular payload.
+ */
+export class ProductDocumentAttachmentRefDto {
+  @ApiPropertyOptional({ example: '1' })
+  @IsOptional()
+  @IsString()
+  attachmentTypeId?: string;
+}
 
 export class ProductInformationDto {
   @ApiProperty({ example: '01' })
@@ -295,7 +314,19 @@ export class ProductInformationDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => MotorcyclePhotoDto)
-  motorcyclePhotos!: MotorcyclePhotoDto[];
+  motorcyclePhoto!: MotorcyclePhotoDto[];
+
+  @ApiPropertyOptional({
+    type: () => ProductDocumentAttachmentRefDto,
+    isArray: true,
+    deprecated: true,
+    description: 'Ignored. Use the top-level documentAttachments instead.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductDocumentAttachmentRefDto)
+  documentAttachments?: ProductDocumentAttachmentRefDto[];
 }
 
 
@@ -330,8 +361,7 @@ export class EstimateIncomeDto {
     },
   })
   @IsObject()
-  @ValidateNested({ each: true })
-  @Type(() => IncomeDetailDto)
+  @IsRecordOf(() => IncomeDetailDto)
   incomes!: Record<string, IncomeDetailDto>;
 }
 
@@ -358,7 +388,9 @@ export class PaymentDetailDto {
 
 export class EstimatePaymentDto {
   @ApiProperty({
-    description: 'Map of necessary expense code to payment detail',
+    description:
+      'Map of necessary expense code to payment detail. ' +
+      'The property name is UPPER_SNAKE_CASE because that is what Angular sends.',
     example: {
       HOUSING_EXPENSE: {
         itemId: '6',
@@ -373,9 +405,8 @@ export class EstimatePaymentDto {
     },
   })
   @IsObject()
-  @ValidateNested({ each: true })
-  @Type(() => PaymentDetailDto)
-  necessaryExpense!: Record<string, PaymentDetailDto>;
+  @IsRecordOf(() => PaymentDetailDto)
+  NECESSARY_EXPENSE!: Record<string, PaymentDetailDto>;
 
   @ApiProperty({
     description: 'Map of debt obligation code to payment detail',
@@ -393,9 +424,8 @@ export class EstimatePaymentDto {
     },
   })
   @IsObject()
-  @ValidateNested({ each: true })
-  @Type(() => PaymentDetailDto)
-  debtObligation!: Record<string, PaymentDetailDto>;
+  @IsRecordOf(() => PaymentDetailDto)
+  DEBT_OBLIGATION!: Record<string, PaymentDetailDto>;
 }
 
 
@@ -463,10 +493,24 @@ export class AttachmentFileDto {
 }
 
 
+// Actual binaries come through the multipart field `documentAttach`.
+// An uploaded file belongs to the attachment whose attachmentTypeId equals the
+// number its file name starts with ("1.pdf", "1-id-card.pdf" -> attachmentTypeId "1").
+// files[].fileName is informational only; files[].remark is paired by position.
 export class AttachmentDto {
   @ApiProperty({ example: 'ID_CARD' })
   @IsString()
   attachmentCode!: string;
+
+  @ApiPropertyOptional({
+    example: '1',
+    description:
+      'Checked against M_ATTACHMENT_TYPE. Uploaded files named after it ' +
+      '("1.pdf", "1-id-card.pdf") are linked to this attachment.',
+  })
+  @IsOptional()
+  @IsString()
+  attachmentTypeId?: string;
 
   @ApiProperty({
     type: () => AttachmentFileDto,

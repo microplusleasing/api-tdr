@@ -15,7 +15,7 @@ import { TdrAssessmentRepository } from './repositories/tdr-assessment.repositor
 
 import { FileLoggerService } from '../../common/logger/file-logger.service';
 import { FileStorageService } from '../../common/file-storage/file-storage.service';
-import { UploadedFile } from '../../common/types/uploaded-file.type';
+import { ResolvedTdrFiles } from './validators/tdr-assessment-file.validator';
 
 @Injectable()
 export class TdrAssessmentService {
@@ -81,7 +81,7 @@ export class TdrAssessmentService {
 
   async create(
     request: CreateTdrAssessmentDto,
-    files: UploadedFile[],
+    files: ResolvedTdrFiles,
   ) {
     const reqId = this.generateReqId();
 

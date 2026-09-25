@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Connection } from 'oracledb';
 import * as path from 'path';
-import type { Express } from 'express';
 
 // import { DatabaseService } from 'src/database/database.service';
 import { DatabaseService } from '../../database.service';
 import { FileStorageService } from '../../../common/file-storage/file-storage.service';
 
 import { CreateTdrAssessmentDto } from '../dto/create-tdr-assessment.dto';
-import { UploadedFile } from '../../../common/types/uploaded-file.type';
+import { ResolvedTdrFiles } from '../validators/tdr-assessment-file.validator';
 
 type IType = 'Address' | 'Photo' | 'Finalcial' | 'Attachment';
 
@@ -411,78 +410,52 @@ export class TdrAssessmentRepository {
   /**
    * Insert motorcycle photos.
    *
-   * Actual files are received from Multer.
-   *
-   * Example Angular field names:
-   *
-   *   motorcyclePhoto_01
-   *   motorcyclePhoto_02
-   *   motorcyclePhoto_03
+   * The binaries arrive in the multipart field `motorcyclePhoto`. They were
+   * already matched to `productInformation.motorcyclePhotos[]` (by file name /
+   * photoType prefix) by TdrAssessmentFileValidator, so here we only save them.
    */
   async insertMotorcyclePhotos(
     connection: Connection,
     reqId: string,
     request: CreateTdrAssessmentDto,
-    files: UploadedFile[],
+    files: ResolvedTdrFiles,
     writtenFiles: string[],
   ): Promise<void> {
     const photos =
-      request.productInformation?.motorcyclePhotos ?? [];
+      request.productInformation?.motorcyclePhoto ?? [];
 
     for (const photo of photos) {
       const photoTypeCode = photo.photoType;
 
-      // --------------------------------------------------------
-      // Find uploaded file by field name
-      // --------------------------------------------------------
+      const resolved = files.photos.get(photoTypeCode);
 
-      const fieldName =
-        `motorcyclePhoto_${photoTypeCode}`;
-
-      const uploadedFile =
-        files.find(
-          (file) => file.fieldname === fieldName,
-        );
-
-      if (!uploadedFile) {
-        // File is not present.
-        //
-        // Whether this should throw an error depends on your
-        // business rule. Currently we simply skip it.
+      if (!resolved) {
+        // Cannot happen after TdrAssessmentFileValidator.resolve(); guard anyway.
         continue;
       }
 
+      const { file: uploadedFile, originalName } = resolved;
+
       // --------------------------------------------------------
-      // File information
+      // Save physical file (name built from the master code, not
+      // from user input, so it is always a safe file name)
       // --------------------------------------------------------
 
       const extension =
-        this.resolveFileExtension(
-          uploadedFile.originalname,
-        );
+        this.resolveFileExtension(originalName);
 
       const fileName =
         `${photoTypeCode}.${extension}`;
 
-      // --------------------------------------------------------
-      // Save physical file
-      // --------------------------------------------------------
-
       const fullPath =
         await this.fileStorage.saveFile(
           reqId,
-          'T_MOTOCYCLE_PHOTO',
+          'T_MOTORCYCLE_PHOTO',
           fileName,
           uploadedFile.buffer,
         );
 
-      // --------------------------------------------------------
-      // Track written file
-      //
-      // If a later DB operation fails, the service can delete
-      // this file.
-      // --------------------------------------------------------
-
+      // If a later DB operation fails, the service deletes this file.
       writtenFiles.push(fullPath);
 
       // --------------------------------------------------------
@@ -542,8 +515,8 @@ export class TdrAssessmentRepository {
    *
    * estimatePayment contains:
    *
-   *   - necessaryExpense
-   *   - debtObligation
+   *   - NECESSARY_EXPENSE
+   *   - DEBT_OBLIGATION
    */
   async insertFinancialAssessment(
     connection: Connection,
@@ -560,13 +533,13 @@ export class TdrAssessmentRepository {
     await this.insertFinancialGroup(
       connection,
       reqId,
-      estimatePayment.necessaryExpense,
+      estimatePayment.NECESSARY_EXPENSE,
     );
 
     await this.insertFinancialGroup(
       connection,
       reqId,
-      estimatePayment.debtObligation,
+      estimatePayment.DEBT_OBLIGATION,
     );
   }
 
@@ -637,22 +610,16 @@ export class TdrAssessmentRepository {
   /**
    * Insert document attachments.
    *
-   * Actual uploaded files are received from Multer.
-   *
-   * Example Angular field names:
-   *
-   *   attachment_ID_CARD
-   *   attachment_HOUSE_REGISTRATION
-   *   attachment_SALARY_SLIP
-   *   attachment_BANK_STATEMENT
-   *
-   * Multiple files can use the same field name.
+   * The binaries arrive in the multipart field `documentAttach`. They were
+   * already linked to `documentAttachments.attachments[]` (by file name /
+   * attachmentTypeId prefix) by TdrAssessmentFileValidator, so here we only
+   * save them.
    */
   async insertAttachments(
     connection: Connection,
     reqId: string,
     request: CreateTdrAssessmentDto,
-    files: UploadedFile[],
+    files: ResolvedTdrFiles,
     attachmentTypeIds: Map<string, number>,
     writtenFiles: string[],
   ): Promise<void> {
@@ -660,10 +627,6 @@ export class TdrAssessmentRepository {
       request.documentAttachments?.attachments ?? [];
 
     for (const attachment of attachments) {
-      // --------------------------------------------------------
-      // Find attachment type ID from master data
-      // --------------------------------------------------------
-
       const attachmentTypeId =
         attachmentTypeIds.get(
           attachment.attachmentCode,
@@ -673,86 +636,38 @@ export class TdrAssessmentRepository {
         continue;
       }
 
-      // --------------------------------------------------------
-      // Find actual uploaded files
-      // --------------------------------------------------------
+      const resolvedFiles =
+        files.attachments.get(attachment.attachmentCode) ?? [];
 
-      const fieldName =
-        `attachment_${attachment.attachmentCode}`;
+      for (const [index, resolved] of resolvedFiles.entries()) {
+        const { file: uploadedFile, originalName } = resolved;
 
-      const uploadedFiles =
-        files.filter(
-          (file) => file.fieldname === fieldName,
-        );
-
-      if (uploadedFiles.length === 0) {
-        continue;
-      }
-
-      // --------------------------------------------------------
-      // Process each uploaded file
-      // --------------------------------------------------------
-
-      for (const uploadedFile of uploadedFiles) {
         const attachmentId =
           this.generateId('Attachment');
 
-        // ------------------------------------------------------
-        // Resolve extension from actual uploaded file
-        // ------------------------------------------------------
-
         const fileExt =
-          this.resolveFileExtension(
-            uploadedFile.originalname,
-          );
+          this.resolveFileExtension(originalName);
 
         // ------------------------------------------------------
-        // Use original filename
+        // Physical file name is built from the master code + index,
+        // NOT from the user's file name: two documents both called
+        // "scan.pdf" must not overwrite each other, and the name
+        // can never contain path characters.
+        // The original name is kept in FILE_NAME.
         // ------------------------------------------------------
 
-        const fileName =
-          uploadedFile.originalname;
-
-        // ------------------------------------------------------
-        // Save physical file
-        // ------------------------------------------------------
+        const storedName =
+          `${attachment.attachmentCode}_${index + 1}.${fileExt}`;
 
         const fullPath =
           await this.fileStorage.saveFile(
             reqId,
             'T_ATTACHMENT',
-            fileName,
+            storedName,
             uploadedFile.buffer,
           );
 
-        // ------------------------------------------------------
-        // Track physical file
-        //
-        // If DB transaction fails later, service will delete
-        // everything in writtenFiles.
-        // ------------------------------------------------------
-
         writtenFiles.push(fullPath);
-
-        // ------------------------------------------------------
-        // Find optional metadata from DTO
-        //
-        // The DTO only contains metadata, NOT the binary file.
-        //
-        // If you need per-file remark later, we can map metadata
-        // to uploaded files by index.
-        // ------------------------------------------------------
-
-        const metadata =
-          this.findAttachmentMetadata(
-            attachment,
-            uploadedFile,
-            uploadedFiles,
-          );
-
-        // ------------------------------------------------------
-        // Insert database record
-        // ------------------------------------------------------
 
         await this.databaseService.executeOnConnection(
           connection,
@@ -789,79 +704,18 @@ export class TdrAssessmentRepository {
             reqId,
             attachmentTypeId,
 
-            fileName,
+            fileName: originalName,
             filePath: fullPath,
 
             fileSize: uploadedFile.size,
             mimeType: uploadedFile.mimetype,
             fileExt,
 
-            remark:
-              metadata?.remark ?? null,
+            remark: resolved.remark ?? null,
           },
         );
       }
     }
-  }
-
-  // ============================================================
-  // Attachment Metadata
-  // ============================================================
-
-  /**
-   * Find DTO metadata belonging to an uploaded file.
-   *
-   * Currently the Angular request normally sends:
-   *
-   *   files: [
-   *     File,
-   *     File,
-   *   ]
-   *
-   * and the JSON contains:
-   *
-   *   files: [
-   *     { fileName: '...' },
-   *     { fileName: '...' }
-   *   ]
-   *
-   * We match them using the original filename.
-   */
-  private findAttachmentMetadata(
-    attachment: CreateTdrAssessmentDto['documentAttachments']['attachments'][number],
-    uploadedFile: UploadedFile,
-    uploadedFiles: UploadedFile[],
-  ) {
-    const metadataFiles =
-      attachment.files ?? [];
-
-    if (metadataFiles.length === 0) {
-      return undefined;
-    }
-
-    const uploadedIndex =
-      uploadedFiles.findIndex(
-        (file) => file === uploadedFile,
-      );
-
-    if (
-      uploadedIndex < 0 ||
-      uploadedIndex >= metadataFiles.length
-    ) {
-      return undefined;
-    }
-
-    const metadata =
-      metadataFiles[uploadedIndex];
-
-    if (
-      metadata.fileName &&
-      metadata.fileName !== uploadedFile.originalname
-    ) {
-      return undefined;
-    }
-
-    return metadata;
   }
 
   // ============================================================
@@ -897,11 +751,14 @@ export class TdrAssessmentRepository {
   private resolveFileExtension(
     fileName: string,
   ): string {
-    const extension =
-      path.extname(fileName);
+    const extension = path
+      .extname(fileName)
+      .replace('.', '')
+      .toLowerCase();
 
-    return extension
-      ? extension.replace('.', '').toLowerCase()
+    // Only plain [a-z0-9] extensions are used to build file names on disk.
+    return /^[a-z0-9]{1,10}$/.test(extension)
+      ? extension
       : 'bin';
   }
 

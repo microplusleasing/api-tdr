@@ -264,7 +264,7 @@ export class TdrAssessmentMasterValidator {
     request: CreateTdrAssessmentDto,
   ): Promise<void> {
     const photos =
-      request.productInformation?.motorcyclePhotos ?? [];
+      request.productInformation?.motorcyclePhoto ?? [];
 
     const photoTypes = [
       ...new Set(
@@ -321,7 +321,7 @@ export class TdrAssessmentMasterValidator {
         code: 'INVALID_MASTER_DATA',
         message:
           'One or more motorcycle photo types are invalid or inactive.',
-        field: 'productInformation.motorcyclePhotos',
+        field: 'productInformation.motorcyclePhoto',
         values: invalidCodes,
       });
     }
@@ -337,7 +337,7 @@ export class TdrAssessmentMasterValidator {
    * Request:
    *
    * estimatePayment: {
-   *   necessaryExpense: {
+   *   NECESSARY_EXPENSE: {
    *     [code: string]: {
    *       itemId: string;
    *       amount: number;
@@ -345,7 +345,7 @@ export class TdrAssessmentMasterValidator {
    *     };
    *   };
    *
-   *   debtObligation: {
+   *   DEBT_OBLIGATION: {
    *     [code: string]: {
    *       itemId: string;
    *       amount: number;
@@ -394,7 +394,7 @@ export class TdrAssessmentMasterValidator {
         `
           SELECT
             ITEM_ID,
-            IS_REMARK AS REQUIRE_REMARK,
+            REQUIRE_REMARK,
             IS_ACTIVE
           FROM MOBILEMPLS.M_ASSESSMENT_ITEM
           WHERE ITEM_ID IN (${placeholders})
@@ -474,8 +474,8 @@ export class TdrAssessmentMasterValidator {
   /**
    * Collect all assessment items from:
    *
-   * estimatePayment.necessaryExpense
-   * estimatePayment.debtObligation
+   * estimatePayment.NECESSARY_EXPENSE
+   * estimatePayment.DEBT_OBLIGATION
    */
   private collectAssessmentItems(
     request: CreateTdrAssessmentDto,
@@ -483,12 +483,12 @@ export class TdrAssessmentMasterValidator {
     const items: AssessmentItemInput[] = [];
 
     this.collectAssessmentItemsFromGroup(
-      request.estimatePayment?.necessaryExpense,
+      request.estimatePayment?.NECESSARY_EXPENSE,
       items,
     );
 
     this.collectAssessmentItemsFromGroup(
-      request.estimatePayment?.debtObligation,
+      request.estimatePayment?.DEBT_OBLIGATION,
       items,
     );
 
@@ -550,6 +550,17 @@ export class TdrAssessmentMasterValidator {
   ): Promise<Map<string, number>> {
     const attachments =
       request.documentAttachments?.attachments ?? [];
+
+    const declaredTypeIds = new Map<string, string>();
+
+    for (const attachment of attachments) {
+      if (attachment.attachmentTypeId) {
+        declaredTypeIds.set(
+          attachment.attachmentCode,
+          attachment.attachmentTypeId,
+        );
+      }
+    }
 
     const codes = [
       ...new Set(
@@ -620,6 +631,30 @@ export class TdrAssessmentMasterValidator {
           'One or more attachment types are invalid or inactive.',
         field: 'documentAttachments.attachments',
         values: invalidCodes,
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // The attachmentTypeId sent by the client must agree with the master table
+    // -------------------------------------------------------------------------
+
+    const mismatched = [...declaredTypeIds.entries()]
+      .filter(
+        ([code, typeId]) => resultMap.get(code) !== Number(typeId),
+      )
+      .map(([code, typeId]) => ({
+        attachmentCode: code,
+        sent: typeId,
+        expected: resultMap.get(code),
+      }));
+
+    if (mismatched.length > 0) {
+      throw new BadRequestException({
+        code: 'ATTACHMENT_TYPE_ID_MISMATCH',
+        message:
+          'attachmentTypeId does not match attachmentCode in M_ATTACHMENT_TYPE.',
+        field: 'documentAttachments.attachments',
+        values: mismatched,
       });
     }
 
