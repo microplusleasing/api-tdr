@@ -108,10 +108,10 @@ export class TdrAssessmentRepository {
           :currentUserName,
           :relationship,
           :currentUserPhone,
-          :currentCondition,
+          :vehicleUsageAddress,
           :carUserProvince,
           :carUserPostalCode,
-          :currentCondition,
+          :currentVehicleCondition,
           :currentMileage,
           SYSDATE,
           :createBy,
@@ -172,13 +172,14 @@ export class TdrAssessmentRepository {
         currentUserName: product.currentUserName,
         relationship: product.relationship,
         currentUserPhone: product.currentUserPhone,
-        currentCondition: product.currentCondition,
+        vehicleUsageAddress: product.vehicleUsageAddress,
 
         carUserProvince:
           product.carUserAddress?.province,
 
         carUserPostalCode:
           product.carUserAddress?.postalCode,
+        currentVehicleCondition: product.currentVehicleCondition,
 
         currentMileage:
           this.toNumber(product.currentMileage),
@@ -362,6 +363,7 @@ export class TdrAssessmentRepository {
           DISTRICT,
           PROV_CODE,
           POST_CODE,
+          LOCATION_CODE,
           REMARK,
           CREATED_DATE
         )
@@ -376,8 +378,9 @@ export class TdrAssessmentRepository {
           :road,
           :subDistrict,
           :district,
-          :province,
+          :provCode,
           :postalCode,
+          :locationCode,
           :remark,
           SYSDATE
         )
@@ -394,9 +397,9 @@ export class TdrAssessmentRepository {
         road: address.road,
         subDistrict: address.subDistrict,
         district: address.district,
-        province: address.province,
+        provCode: address.provCode,
         postalCode: address.postalCode,
-
+        locationCode: address.postalCodeLookup,
         remark:
           address.workplaceDescription ?? null,
       },

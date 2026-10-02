@@ -6,6 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "copy": "copy \"package.json\" \"dist/\"&&cd dist&&mkdir static&&cd ..&&copy \"src/static/\" \"dist/static/\"",
     "build": "nest build",
     "build:dev": "set STAGE=dev&&nest build && npm run copy && npm run node_modules:dev",
     "build:prod": "set STAGE=prod&&nest build && npm run copy && npm run node_modules:prod",

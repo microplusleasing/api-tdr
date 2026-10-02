@@ -8,6 +8,7 @@ import {
   AssessmentGroupDisplayDto,
   AttachmentTypeDisplayDto,
   BrandDto,
+  CurrentVehicleConditionDto,
   LocationDto,
   MarriedStatusDto,
   MasterDataResponseDto,
@@ -62,6 +63,7 @@ export class MasterDataService {
       marriedStatus,
       brands,
       models,
+      currentVehicleConditionTypes,
 
       // --------------------------------------------------------
       // Display
@@ -84,6 +86,7 @@ export class MasterDataService {
       this.getMarriedStatus(),
       this.getBrands(),
       this.getModels(),
+      this.getCurrentVehicleCondition(),
 
       // --------------------------------------------------------
       // Display
@@ -108,8 +111,8 @@ export class MasterDataService {
         locations,
         marriedStatus,
         brands,
-        models
-
+        models,
+        currentVehicleConditionTypes
       },
 
       // ========================================================
@@ -363,6 +366,33 @@ export class MasterDataService {
   }
 
   // ============================================================
+  // CURRENT_VEHICLE_CONDITION
+  // ============================================================
+
+  private async getCurrentVehicleCondition(): Promise<CurrentVehicleConditionDto[]> {
+    const result = await this.db.query<{
+      CODE: string;
+      NAME: string;
+      ORDER_INDEX: number;
+    }>(`
+      SELECT 
+          CONDITION_CODE AS CODE, 
+          CONDITION_NAME AS NAME,
+          ORDER_INDEX
+      FROM
+          MOBILEMPLS.M_CURRENT_VEHICLE_CONDITION
+    `);
+
+    const rows = result.rows ?? [];
+
+    return rows.map((row) => ({
+      code: row.CODE,
+      name: row.NAME,
+      order_index: row.ORDER_INDEX
+    }));
+  }
+
+  // ============================================================
   // Display
   // ============================================================
 
@@ -444,7 +474,9 @@ export class MasterDataService {
   // Restructure Reasons
   // ============================================================
 
-  async getRestructureReasonsDisplay(): Promise<RestructureReasonMasterDataDto[]> {
+  async getRestructureReasonsDisplay(): Promise<
+    RestructureReasonMasterDataDto[]
+  > {
     const result = await this.db.query<{
       REASON_CODE: string;
 

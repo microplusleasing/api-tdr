@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
+import { DatabaseService } from '../../database.service';
 import { UploadedFile } from '../../../common/types/uploaded-file.type';
 import { CreateTdrAssessmentDto } from '../dto/create-tdr-assessment.dto';
 import {
@@ -96,10 +97,12 @@ interface Candidate extends ResolvedFile {
  */
 @Injectable()
 export class TdrAssessmentFileValidator {
-  resolve(
+  constructor(private readonly databaseService: DatabaseService) {}
+
+  async resolve(
     request: CreateTdrAssessmentDto,
     uploaded: TdrUploadedFiles | undefined,
-  ): ResolvedTdrFiles {
+  ): Promise<ResolvedTdrFiles> {
     const photoFiles = this.toCandidates(
       uploaded?.[FORM_FIELD_MOTORCYCLE_PHOTO],
       FORM_FIELD_MOTORCYCLE_PHOTO,
@@ -110,8 +113,11 @@ export class TdrAssessmentFileValidator {
       FORM_FIELD_DOCUMENT_ATTACH,
     );
 
-    const photos = this.resolvePhotos(request, photoFiles);
-    const attachments = this.resolveAttachments(request, documentFiles);
+    const photos = await this.resolvePhotos(request, photoFiles);
+    const attachments = await this.resolveAttachments(
+      request,
+      documentFiles,
+    );
 
     return { photos, attachments };
   }
@@ -120,10 +126,10 @@ export class TdrAssessmentFileValidator {
   // Motorcycle photos
   // ===========================================================================
 
-  private resolvePhotos(
+  private async resolvePhotos(
     request: CreateTdrAssessmentDto,
     files: Candidate[],
-  ): Map<string, ResolvedFile> {
+  ): Promise<Map<string, ResolvedFile>> {
     const result = new Map<string, ResolvedFile>();
     const declared = request.productInformation?.motorcyclePhoto ?? [];
 
@@ -132,6 +138,17 @@ export class TdrAssessmentFileValidator {
       'DUPLICATE_MOTORCYCLE_PHOTO_TYPE',
       'productInformation.motorcyclePhoto',
       'photoType is declared more than once',
+    );
+
+    // Every declared photoType must exist and be active in
+    // MOBILEMPLS.M_MOTORCYCLE_PHOTO_TYPE (checked against the DB, not just
+    // against what the client happened to send in "data").
+    await this.assertKnownCodes(
+      declared.map((photo) => photo.photoType),
+      () => this.fetchActivePhotoTypeCodes(),
+      'INVALID_MOTORCYCLE_PHOTO_TYPE',
+      'productInformation.motorcyclePhoto',
+      'photoType is invalid or inactive',
     );
 
     // The attached file's own name decides which photo it is:
@@ -173,10 +190,10 @@ export class TdrAssessmentFileValidator {
   // Document attachments
   // ===========================================================================
 
-  private resolveAttachments(
+  private async resolveAttachments(
     request: CreateTdrAssessmentDto,
     files: Candidate[],
-  ): Map<string, ResolvedAttachmentFile[]> {
+  ): Promise<Map<string, ResolvedAttachmentFile[]>> {
     const result = new Map<string, ResolvedAttachmentFile[]>();
     const declared = request.documentAttachments?.attachments ?? [];
 
@@ -185,6 +202,21 @@ export class TdrAssessmentFileValidator {
       'DUPLICATE_ATTACHMENT_CODE',
       'documentAttachments.attachments',
       'attachmentCode is declared more than once',
+    );
+
+    // Every declared attachmentTypeId must exist and be active in
+    // MOBILEMPLS.M_ATTACHMENT_TYPE (checked against the DB, not just
+    // against what the client happened to send in "data").
+    const activeAttachmentTypes = await this.fetchActiveAttachmentTypes();
+
+    await this.assertKnownCodes(
+      declared
+        .map((attachment) => attachment.attachmentTypeId)
+        .filter((typeId): typeId is string => !!typeId),
+      () => Promise.resolve(new Set(activeAttachmentTypes.keys())),
+      'INVALID_ATTACHMENT_TYPE_ID',
+      'documentAttachments.attachments',
+      'attachmentTypeId is invalid or inactive',
     );
 
     for (const attachment of declared) {
@@ -219,7 +251,140 @@ export class TdrAssessmentFileValidator {
 
     this.assertAllUsed(files, FORM_FIELD_DOCUMENT_ATTACH);
 
+    // Attachment types marked IS_REQUIRED = 'Y' must end up with at least
+    // one actual file — declaring the attachmentTypeId with no matching
+    // file attached does NOT satisfy a required document.
+    this.assertRequiredAttachments(declared, result, activeAttachmentTypes);
+
     return result;
+  }
+
+  // ===========================================================================
+  // Master data (DB) checks
+  // ===========================================================================
+
+  /** Active motorcycle photo type codes, from MOBILEMPLS.M_MOTORCYCLE_PHOTO_TYPE. */
+  private async fetchActivePhotoTypeCodes(): Promise<Set<string>> {
+    const result = await this.databaseService.execute<{
+      PHOTO_TYPE_CODE: string;
+    }>(
+      `
+        SELECT
+          PHOTO_TYPE_CODE
+        FROM
+          MOBILEMPLS.M_MOTORCYCLE_PHOTO_TYPE
+        WHERE
+          IS_ACTIVE = 'Y'
+      `,
+    );
+
+    return new Set(
+      (result.rows ?? []).map((row) => String(row.PHOTO_TYPE_CODE)),
+    );
+  }
+
+  /**
+   * Active attachment types, from MOBILEMPLS.M_ATTACHMENT_TYPE.
+   * Map of ATTACHMENT_TYPE_ID -> is this type required (IS_REQUIRED = 'Y').
+   */
+  private async fetchActiveAttachmentTypes(): Promise<Map<string, boolean>> {
+    const result = await this.databaseService.execute<{
+      ATTACHMENT_TYPE_ID: string;
+      IS_REQUIRED: string;
+    }>(
+      `
+        SELECT
+          ATTACHMENT_TYPE_ID,
+          IS_REQUIRED
+        FROM
+          MOBILEMPLS.M_ATTACHMENT_TYPE
+        WHERE
+          IS_ACTIVE = 'Y'
+      `,
+    );
+
+    return new Map(
+      (result.rows ?? []).map((row) => [
+        String(row.ATTACHMENT_TYPE_ID),
+        row.IS_REQUIRED === 'Y',
+      ]),
+    );
+  }
+
+  /**
+   * Every attachmentTypeId marked IS_REQUIRED = 'Y' must have at least one
+   * resolved file in `result`. A required type with no declared entry, or a
+   * declared entry that ended up with zero matched files, fails.
+   */
+  private assertRequiredAttachments(
+    declared: { attachmentCode: string; attachmentTypeId?: string }[],
+    result: Map<string, ResolvedAttachmentFile[]>,
+    activeAttachmentTypes: Map<string, boolean>,
+  ): void {
+    const requiredTypeIds = [...activeAttachmentTypes.entries()]
+      .filter(([, isRequired]) => isRequired)
+      .map(([typeId]) => typeId);
+
+    if (requiredTypeIds.length === 0) {
+      return;
+    }
+
+    const satisfiedTypeIds = new Set(
+      declared
+        .filter(
+          (attachment) =>
+            attachment.attachmentTypeId &&
+            (result.get(attachment.attachmentCode)?.length ?? 0) > 0,
+        )
+        .map((attachment) => attachment.attachmentTypeId!),
+    );
+
+    const missing = requiredTypeIds.filter(
+      (typeId) => !satisfiedTypeIds.has(typeId),
+    );
+
+    if (missing.length > 0) {
+      throw new BadRequestException({
+        code: 'REQUIRED_ATTACHMENT_MISSING',
+        message: `No file was attached for required attachmentTypeId: ${missing.join(', ')}.`,
+        field: 'documentAttachments.attachments',
+        values: missing,
+      });
+    }
+  }
+
+  /**
+   * Every value in `codes` must be a member of the active set returned by
+   * `fetchActive`. Empty/undefined values are ignored (handled elsewhere as
+   * "not provided"); the DB is only queried when there is something to check.
+   */
+  private async assertKnownCodes(
+    codes: (string | undefined)[],
+    fetchActive: () => Promise<Set<string>>,
+    code: string,
+    field: string,
+    message: string,
+  ): Promise<void> {
+    const values = [
+      ...new Set(codes.filter((value): value is string => !!value)),
+    ];
+
+    if (values.length === 0) {
+      return;
+    }
+
+    const activeCodes = await fetchActive();
+
+    const invalid = values.filter((value) => !activeCodes.has(value));
+
+    if (invalid.length > 0) {
+      throw new BadRequestException({
+        code,
+        message: `${message}: ${invalid.join(', ')}`,
+        field,
+        values: invalid,
+      });
+    }
   }
 
   // ===========================================================================

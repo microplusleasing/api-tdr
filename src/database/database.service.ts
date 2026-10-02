@@ -128,6 +128,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async withConnection<T>(
+    callback: (connection: Connection) => Promise<T>,
+  ): Promise<T> {
+    const connection = await this.getConnection();
+    try {
+      return await callback(connection);
+    } finally {
+      await connection.close();
+    }
+  }
+
   async transaction<T>(
     callback: (connection: Connection) => Promise<T>,
   ): Promise<T> {

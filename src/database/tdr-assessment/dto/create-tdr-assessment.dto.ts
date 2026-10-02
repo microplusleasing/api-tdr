@@ -59,6 +59,11 @@ export class AddressDto {
   @IsString()
   province?: string;
 
+  @ApiPropertyOptional({ example: '11' })
+  @IsOptional()
+  @IsString()
+  provCode?: string;
+
   @ApiPropertyOptional({ example: '110504' })
   @IsOptional()
   @IsString()
@@ -295,7 +300,11 @@ export class ProductInformationDto {
 
   @ApiProperty({ example: '93/1 หมู่ 3 ซ.วัดใหญ่' })
   @IsString()
-  currentCondition!: string;
+  vehicleUsageAddress!: string;
+
+  @ApiProperty({ example: 'CV01' })
+  @IsString()
+  currentVehicleCondition!: string;
 
   @ApiProperty({ type: () => VehicleUserAddressDto })
   @IsDefined()

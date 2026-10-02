@@ -69,6 +69,15 @@ export class ModelDto {
 }
 
 // ============================================================
+// CURRENT_VEHICLE_CONDITION
+// ============================================================
+export class CurrentVehicleConditionDto {
+  code!: string
+  name!: string
+  order_index!: number;
+}
+
+// ============================================================
 // VEHICLE_USER_TYPE
 // ============================================================
 
@@ -360,6 +369,11 @@ class MasterDataParametersDto {
     type: [ModelDto],
   })
   models!: ModelDto[];
+
+  @ApiProperty({
+    type: [CurrentVehicleConditionDto],
+  })
+  currentVehicleConditionTypes!: CurrentVehicleConditionDto[];
 
 }
 

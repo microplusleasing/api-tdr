@@ -67,9 +67,9 @@ export class TdrAssessmentController {
     description:
       'multipart/form-data with three kinds of parts:\n\n' +
       '- `data` - JSON text of the assessment\n' +
-      '- `motorcyclePhoto` - photo files (repeat the field per file)\n' +
+      '- `motocyclePhoto` - photo files (repeat the field per file)\n' +
       '- `documentAttach` - document files (repeat the field per file)\n\n' +
-      'Files are linked to the JSON by their own file name: `motorcyclePhoto` files ' +
+      'Files are linked to the JSON by their own file name: `motocyclePhoto` files ' +
       'are named after the photoType (`01.jpg`, `02.jpg`), `documentAttach` files ' +
       'after the attachmentTypeId (`1.pdf`, `2.pdf`).',
   })
@@ -125,7 +125,7 @@ export class TdrAssessmentController {
     const request = await this.requestValidator.parse(body.data);
 
     // 2. attached files must agree with the names declared in `data`
-    const resolvedFiles = this.fileValidator.resolve(request, files);
+    const resolvedFiles = await this.fileValidator.resolve(request, files);
 
     // 3. database work + saving files
     return this.tdrAssessmentService.create(request, resolvedFiles);

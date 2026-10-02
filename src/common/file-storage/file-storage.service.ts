@@ -11,7 +11,7 @@ export class FileStorageService {
 
   constructor(private readonly configService: ConfigService) {
     // e.g. C:\mpls-files  — keep it configurable rather than hardcoded
-    this.rootPath = this.configService.get<string>('FILE_STORAGE_ROOT') ?? 'C:\\mpls-files';
+    this.rootPath = this.configService.get<string>('FILE_STORAGE_ROOT') ?? 'C:\\mpls-files\\tdr-assessment';
   }
 
   /**

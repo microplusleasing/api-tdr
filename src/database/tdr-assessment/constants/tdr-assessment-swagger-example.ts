@@ -56,7 +56,8 @@ export const TDR_ASSESSMENT_SWAGGER_EXAMPLE = {
     currentUserName: 'สมปอง',
     relationship: 'เพื่อน',
     currentUserPhone: '0999999999',
-    currentCondition: '93/1 หมู่ 3 ซ.วัดใหญ่',
+    vehicleUsageAddress: '93/1 หมู่ 3 ซ.วัดใหญ่',
+    currentVehicleCondition: 'CV01',
     carUserAddress: { postalCodeLookup: '110504' },
     currentMileage: '200000',
     motorcyclePhoto: [

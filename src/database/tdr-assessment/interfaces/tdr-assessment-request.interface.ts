@@ -73,7 +73,8 @@ export interface ProductInformation {
   relationship: string;
   currentUserPhone: string;
 
-  currentCondition: string;
+  vehicleUsageAddress: string;
+  currentVehicleCondition: string
   carUserAddress: VehicleUserAddress;
 
   currentMileage: string;
