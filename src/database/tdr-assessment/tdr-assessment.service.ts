@@ -1,7 +1,6 @@
-import {
-  BadRequestException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+
+import { randomUUID } from 'crypto';
 
 import { DatabaseService } from '../database.service';
 
@@ -40,21 +39,15 @@ export class TdrAssessmentService {
     const normalizedContractNo = contractNo?.trim();
 
     if (!normalizedContractNo) {
-      throw new BadRequestException(
-        'Contract number is required',
-      );
+      throw new BadRequestException('Contract number is required');
     }
 
-    const exists = await this.existsByContractNo(
-      normalizedContractNo,
-    );
+    const exists = await this.existsByContractNo(normalizedContractNo);
 
     return new ContractExistResponseDto(exists);
   }
 
-  private async existsByContractNo(
-    contractNo: string,
-  ): Promise<boolean> {
+  private async existsByContractNo(contractNo: string): Promise<boolean> {
     const sql = `
       SELECT CASE
                WHEN EXISTS (
@@ -68,6 +61,7 @@ export class TdrAssessmentService {
       FROM DUAL
     `;
 
+    // db.execute() borrows one connection and always releases it.
     const result = await this.dbService.execute(sql, {
       contractNo,
     });
@@ -79,10 +73,7 @@ export class TdrAssessmentService {
   // Create TDR Assessment
   // ============================================================
 
-  async create(
-    request: CreateTdrAssessmentDto,
-    files: ResolvedTdrFiles,
-  ) {
+  async create(request: CreateTdrAssessmentDto, files: ResolvedTdrFiles) {
     const reqId = this.generateReqId();
 
     /**
@@ -94,179 +85,88 @@ export class TdrAssessmentService {
      */
     const writtenFiles: string[] = [];
 
-    await this.fileLogger.start(
-      this.LOG_API,
-      reqId,
-    );
+    await this.fileLogger.start(this.LOG_API, reqId);
 
     try {
       await this.dbService.transaction(async (connection) => {
-
         // ======================================================
         // 1. Validate Contract
         // ======================================================
 
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[1/7] Contract validation START',
+        await this.step(reqId, '[1/7] Contract validation', () =>
+          this.contractValidator.validate(
+            connection,
+            request.customerInformation.contractNo,
+          ),
         );
-
-        await this.contractValidator.validate(
-          connection,
-          request.customerInformation.contractNo,
-        );
-
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[1/7] Contract validation SUCCESS',
-        );
-
 
         // ======================================================
         // 2. Validate Master Data
         // ======================================================
 
-        await this.fileLogger.log(
-          this.LOG_API,
+        const masterContext = await this.step(
           reqId,
-          '[2/7] Master validation START',
+          '[2/7] Master validation',
+          () => this.masterValidator.validate(connection, request),
         );
-
-        const masterContext =
-          await this.masterValidator.validate(
-            connection,
-            request,
-          );
-
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[2/7] Master validation SUCCESS',
-        );
-
 
         // ======================================================
         // 3. Insert Customer Request
         // ======================================================
 
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[3/7] Insert customer request START',
+        await this.step(reqId, '[3/7] Insert customer request', () =>
+          this.repository.insertCustomerRequest(connection, reqId, request),
         );
-
-        await this.repository.insertCustomerRequest(
-          connection,
-          reqId,
-          request,
-        );
-
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[3/7] Insert customer request SUCCESS',
-        );
-
 
         // ======================================================
         // 4. Insert Customer Addresses
         // ======================================================
 
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[4/7] Insert customer addresses START',
+        await this.step(reqId, '[4/7] Insert customer addresses', () =>
+          this.repository.insertCustomerAddresses(connection, reqId, request),
         );
-
-        await this.repository.insertCustomerAddresses(
-          connection,
-          reqId,
-          request,
-        );
-
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[4/7] Insert customer addresses SUCCESS',
-        );
-
 
         // ======================================================
         // 5. Insert Motorcycle Photos
         // ======================================================
 
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[5/7] Insert motorcycle photos START',
+        await this.step(reqId, '[5/7] Insert motorcycle photos', () =>
+          this.repository.insertMotorcyclePhotos(
+            connection,
+            reqId,
+            request,
+            files,
+            writtenFiles,
+          ),
         );
-
-        await this.repository.insertMotorcyclePhotos(
-          connection,
-          reqId,
-          request,
-          files,
-          writtenFiles,
-        );
-
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[5/7] Insert motorcycle photos SUCCESS',
-        );
-
 
         // ======================================================
         // 6. Insert Financial Assessment
         // ======================================================
 
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[6/7] Insert financial assessment START',
+        await this.step(reqId, '[6/7] Insert financial assessment', () =>
+          this.repository.insertFinancialAssessment(
+            connection,
+            reqId,
+            request,
+          ),
         );
-
-        await this.repository.insertFinancialAssessment(
-          connection,
-          reqId,
-          request,
-        );
-
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[6/7] Insert financial assessment SUCCESS',
-        );
-
 
         // ======================================================
         // 7. Insert Attachments
         // ======================================================
 
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[7/7] Insert attachments START',
-        );
-
-        await this.repository.insertAttachments(
-          connection,
-          reqId,
-          request,
-          files,
-          masterContext.attachmentTypeIds,
-          writtenFiles,
-        );
-
-        await this.fileLogger.log(
-          this.LOG_API,
-          reqId,
-          '[7/7] Insert attachments SUCCESS',
+        await this.step(reqId, '[7/7] Insert attachments', () =>
+          this.repository.insertAttachments(
+            connection,
+            reqId,
+            request,
+            files,
+            masterContext.attachmentTypeIds,
+            writtenFiles,
+          ),
         );
       });
-
 
       // ========================================================
       // Transaction committed
@@ -283,9 +183,7 @@ export class TdrAssessmentService {
         reqId,
         message: 'TDR assessment created successfully',
       };
-
     } catch (error) {
-
       // ========================================================
       // Transaction failed
       // ========================================================
@@ -296,13 +194,21 @@ export class TdrAssessmentService {
        *
        * Delete files that were already written to disk because
        * filesystem operations are not part of the DB transaction.
+       *
+       * A cleanup failure must NOT hide the original error.
        */
       if (writtenFiles.length > 0) {
-        await this.fileStorage.deleteFiles(
-          writtenFiles,
-        );
+        try {
+          await this.fileStorage.deleteFiles(writtenFiles);
+        } catch (cleanupError) {
+          await this.fileLogger.error(
+            this.LOG_API,
+            reqId,
+            'FILE CLEANUP FAILED',
+            cleanupError,
+          );
+        }
       }
-
 
       // ========================================================
       // Error Logging
@@ -315,7 +221,6 @@ export class TdrAssessmentService {
         error,
       );
 
-
       // ========================================================
       // Save Failed Request
       // ========================================================
@@ -327,15 +232,28 @@ export class TdrAssessmentService {
         error,
       );
 
-
-      await this.fileLogger.end(
-        this.LOG_API,
-        reqId,
-        'CREATE FAILED',
-      );
+      await this.fileLogger.end(this.LOG_API, reqId, 'CREATE FAILED');
 
       throw error;
     }
+  }
+
+  // ============================================================
+  // Step runner (writes "<label> START" / "<label> SUCCESS")
+  // ============================================================
+
+  private async step<T>(
+    reqId: string,
+    label: string,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    await this.fileLogger.log(this.LOG_API, reqId, `${label} START`);
+
+    const result = await action();
+
+    await this.fileLogger.log(this.LOG_API, reqId, `${label} SUCCESS`);
+
+    return result;
   }
 
   // ============================================================
@@ -343,6 +261,6 @@ export class TdrAssessmentService {
   // ============================================================
 
   private generateReqId(): string {
-    return `TDR-${crypto.randomUUID()}`;
+    return `TDR-${randomUUID()}`;
   }
 }

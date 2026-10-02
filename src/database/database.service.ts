@@ -15,16 +15,37 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   private pool!: Pool;
 
+  /**
+   * Max time (ms) a single DB call may run before Oracle aborts it.
+   * Prevents one hung query from holding a pooled connection forever.
+   */
+  private readonly callTimeoutMs = 20000;
+
   constructor(private readonly configService: ConfigService) {}
+
+  /** callTimeout needs Oracle Client 18.1+ (version 1801000000). */
+  private supportsCallTimeout = false;
 
   async onModuleInit(): Promise<void> {
     oracledb.initOracleClient();
+
+    this.supportsCallTimeout = oracledb.oracleClientVersion >= 1801000000;
+
+    this.logger.log(
+      `Oracle Client version: ${oracledb.oracleClientVersionString} ` +
+        `(callTimeout ${this.supportsCallTimeout ? 'enabled' : 'disabled'})`,
+    );
+
     await this.createPool();
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.closePool();
   }
+
+  // ============================================================
+  // Pool
+  // ============================================================
 
   private async createPool(): Promise<void> {
     const user = this.configService.get<string>('ORACLE_USER');
@@ -35,16 +56,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       'ORACLE_CONNECT_STRING',
     );
 
-    const poolMin = Number(
-      this.configService.get<string>('ORACLE_POOL_MIN') ?? 2,
-    );
-
     const poolMax = Number(
       this.configService.get<string>('ORACLE_POOL_MAX') ?? 10,
-    );
-
-    const poolIncrement = Number(
-      this.configService.get<string>('ORACLE_POOL_INCREMENT') ?? 1,
     );
 
     if (!user) {
@@ -64,15 +77,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       password,
       connectString,
 
-      poolMin,
+      // Fixed-size pool: all connections are opened at startup,
+      // so a burst of requests never waits on slow connection creation.
+      poolMin: poolMax,
       poolMax,
-      poolIncrement,
+      poolIncrement: 0,
 
-      poolTimeout: 60,
+      // Fixed pool -> never close idle connections.
+      poolTimeout: 0,
+
+      // Check an idle connection is still alive before handing it out
+      // (handles connections silently dropped by firewall / VPN / DB).
+      poolPingInterval: 30,
+
+      // Max wait (ms) for a free connection -> NJS-040 if exceeded.
       queueTimeout: 30000,
     };
 
-    this.logger.log(`Creating Oracle pool: ${connectString}`);
+    this.logger.log(
+      `Creating Oracle pool: ${connectString} (poolMax=${poolMax})`,
+    );
 
     this.pool = await oracledb.createPool(config);
 
@@ -84,28 +108,69 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Oracle connection pool is not initialized');
     }
 
-    return this.pool.getConnection();
+    try {
+      const connection = await this.pool.getConnection();
+
+      // Abort any single call that runs longer than the limit.
+      // Only supported by Oracle Client 18.1+; skipped on older clients.
+      if (this.supportsCallTimeout) {
+        try {
+          connection.callTimeout = this.callTimeoutMs;
+        } catch (error) {
+          // Never leak the connection if setup fails.
+          await this.safeClose(connection);
+
+          throw error;
+        }
+      }
+
+      return connection;
+    } catch (error) {
+      // Helps confirm whether the pool is exhausted when NJS-040 happens.
+      this.logger.error(
+        `Failed to get Oracle connection ` +
+          `(open=${this.pool.connectionsOpen}, ` +
+          `inUse=${this.pool.connectionsInUse}): ` +
+          `${(error as Error).message}`,
+      );
+
+      throw error;
+    }
   }
+
+  // ============================================================
+  // Single connection scope
+  // ============================================================
+
+  /**
+   * Borrow ONE connection, run the callback, always release it.
+   * Use this when you need several queries in one request
+   * (instead of calling query() many times).
+   */
+  async withConnection<T>(
+    callback: (connection: Connection) => Promise<T>,
+  ): Promise<T> {
+    const connection = await this.getConnection();
+
+    try {
+      return await callback(connection);
+    } finally {
+      await this.safeClose(connection);
+    }
+  }
+
+  // ============================================================
+  // Query helpers
+  // ============================================================
 
   async query<T = any>(
     sql: string,
     binds: Record<string, unknown> = {},
     options: oracledb.ExecuteOptions = {},
   ): Promise<Result<T>> {
-    let connection: Connection | undefined;
-
-    try {
-      connection = await this.getConnection();
-
-      return await connection.execute<T>(sql, binds, {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
-        ...options,
-      });
-    } finally {
-      if (connection) {
-        await connection.close();
-      }
-    }
+    return this.withConnection((connection) =>
+      this.executeOnConnection<T>(connection, sql, binds, options),
+    );
   }
 
   async execute<T = any>(
@@ -128,40 +193,48 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async withConnection<T>(
-    callback: (connection: Connection) => Promise<T>,
-  ): Promise<T> {
-    const connection = await this.getConnection();
-    try {
-      return await callback(connection);
-    } finally {
-      await connection.close();
-    }
-  }
+  // ============================================================
+  // Transaction
+  // ============================================================
 
   async transaction<T>(
     callback: (connection: Connection) => Promise<T>,
   ): Promise<T> {
-    let connection: Connection | undefined;
+    const connection = await this.getConnection();
 
     try {
-      connection = await this.getConnection();
-
       const result = await callback(connection);
 
       await connection.commit();
 
       return result;
     } catch (error) {
-      if (connection) {
+      try {
         await connection.rollback();
+      } catch (rollbackError) {
+        // Do not hide the original error with a rollback failure.
+        this.logger.error(
+          `Rollback failed: ${(rollbackError as Error).message}`,
+        );
       }
 
       throw error;
     } finally {
-      if (connection) {
-        await connection.close();
-      }
+      await this.safeClose(connection);
+    }
+  }
+
+  // ============================================================
+  // Close
+  // ============================================================
+
+  private async safeClose(connection: Connection): Promise<void> {
+    try {
+      await connection.close();
+    } catch (error) {
+      this.logger.error(
+        `Failed to release Oracle connection: ${(error as Error).message}`,
+      );
     }
   }
 
