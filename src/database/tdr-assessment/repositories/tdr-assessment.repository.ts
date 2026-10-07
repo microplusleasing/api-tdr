@@ -185,7 +185,7 @@ export class TdrAssessmentRepository {
           this.toNumber(product.currentMileage),
 
         createBy: 'CUSTOMER',
-        statusCode: 'DRAFT',
+        statusCode: 'SUBMITTED',
       },
     );
   }
