@@ -694,7 +694,7 @@ export class MasterDataService {
       FROM
         MOBILEMPLS.M_VEHICLE_USER_TYPE
       ORDER BY
-        DISPLAY_ORDER
+        DISPLAY_ORDER ASC
     `,
       connection,
     );
