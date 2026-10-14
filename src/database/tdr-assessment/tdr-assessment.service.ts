@@ -93,7 +93,7 @@ export class TdrAssessmentService {
         // 1. Validate Contract
         // ======================================================
 
-        await this.step(reqId, '[1/7] Contract validation', () =>
+        await this.step(reqId, '[1/8] Contract validation', () =>
           this.contractValidator.validate(
             connection,
             request.customerInformation.contractNo,
@@ -106,7 +106,7 @@ export class TdrAssessmentService {
 
         const masterContext = await this.step(
           reqId,
-          '[2/7] Master validation',
+          '[2/8] Master validation',
           () => this.masterValidator.validate(connection, request),
         );
 
@@ -114,7 +114,7 @@ export class TdrAssessmentService {
         // 3. Insert Customer Request
         // ======================================================
 
-        await this.step(reqId, '[3/7] Insert customer request', () =>
+        await this.step(reqId, '[3/8] Insert customer request', () =>
           this.repository.insertCustomerRequest(connection, reqId, request),
         );
 
@@ -122,7 +122,7 @@ export class TdrAssessmentService {
         // 4. Insert Customer Addresses
         // ======================================================
 
-        await this.step(reqId, '[4/7] Insert customer addresses', () =>
+        await this.step(reqId, '[4/8] Insert customer addresses', () =>
           this.repository.insertCustomerAddresses(connection, reqId, request),
         );
 
@@ -130,7 +130,7 @@ export class TdrAssessmentService {
         // 5. Insert Motorcycle Photos
         // ======================================================
 
-        await this.step(reqId, '[5/7] Insert motorcycle photos', () =>
+        await this.step(reqId, '[5/8] Insert motorcycle photos', () =>
           this.repository.insertMotorcyclePhotos(
             connection,
             reqId,
@@ -141,10 +141,22 @@ export class TdrAssessmentService {
         );
 
         // ======================================================
-        // 6. Insert Financial Assessment
+        // 6. Insert Financial Assessment (Estimate Income)
         // ======================================================
 
-        await this.step(reqId, '[6/7] Insert financial assessment', () =>
+        await this.step(reqId, '[6/8] Insert financial assessment (Estimate Income)', () =>
+          this.repository.insertEstimateIncome(
+            connection,
+            reqId,
+            request,
+          ),
+        );
+
+        // ======================================================
+        // 7. Insert Financial Assessment (Estimate Income)
+        // ======================================================
+
+        await this.step(reqId, '[7/8] Insert financial assessment (Estimate Payment)', () =>
           this.repository.insertFinancialAssessment(
             connection,
             reqId,
@@ -153,10 +165,10 @@ export class TdrAssessmentService {
         );
 
         // ======================================================
-        // 7. Insert Attachments
+        // 8. Insert Attachments
         // ======================================================
 
-        await this.step(reqId, '[7/7] Insert attachments', () =>
+        await this.step(reqId, '[8/8] Insert attachments', () =>
           this.repository.insertAttachments(
             connection,
             reqId,

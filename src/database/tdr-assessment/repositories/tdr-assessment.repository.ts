@@ -129,39 +129,28 @@ export class TdrAssessmentRepository {
         phoneNo: customer.phoneNo,
         maritalStatus: customer.maritalStatus,
 
-        numberOfChildren: this.toNumber(
-          customer.numberOfChildren,
-        ),
+        numberOfChildren: this.toNumber(customer.numberOfChildren),
 
-        dependents: this.toNumber(
-          customer.dependents,
-        ),
+        dependents: this.toNumber(customer.dependents),
 
         occupation: customer.occupation,
         position: customer.position,
         jobDescription: customer.jobDescription,
         workplaceName: customer.workplaceName,
 
-        workplacePhone:
-          customer.workplaceAddress?.workplacePhone,
+        workplacePhone: customer.workplaceAddress?.workplacePhone,
 
-        reference1Name:
-          customer.reference1?.name,
+        reference1Name: customer.reference1?.name,
 
-        reference1Relationship:
-          customer.reference1?.relationship,
+        reference1Relationship: customer.reference1?.relationship,
 
-        reference1Phone:
-          customer.reference1?.phone,
+        reference1Phone: customer.reference1?.phone,
 
-        reference2Name:
-          customer.reference2?.name,
+        reference2Name: customer.reference2?.name,
 
-        reference2Relationship:
-          customer.reference2?.relationship,
+        reference2Relationship: customer.reference2?.relationship,
 
-        reference2Phone:
-          customer.reference2?.phone,
+        reference2Phone: customer.reference2?.phone,
 
         brand: product.brand,
         model: product.model,
@@ -174,15 +163,12 @@ export class TdrAssessmentRepository {
         currentUserPhone: product.currentUserPhone,
         vehicleUsageAddress: product.vehicleUsageAddress,
 
-        carUserProvince:
-          product.carUserAddress?.province,
+        carUserProvince: product.carUserAddress?.province,
 
-        carUserPostalCode:
-          product.carUserAddress?.postalCode,
+        carUserPostalCode: product.carUserAddress?.postalCode,
         currentVehicleCondition: product.currentVehicleCondition,
 
-        currentMileage:
-          this.toNumber(product.currentMileage),
+        currentMileage: this.toNumber(product.currentMileage),
 
         createBy: 'CUSTOMER',
         statusCode: 'SUBMITTED',
@@ -225,8 +211,7 @@ export class TdrAssessmentRepository {
     // ADDRESS_TYPE_CODE = '01'
     // ----------------------------------------------------------
 
-    const registerAddressId =
-      this.generateId('Address');
+    const registerAddressId = this.generateId('Address');
 
     if (customer.registeredAddressSameAsIdCard) {
       await this.insertAddress(
@@ -253,8 +238,7 @@ export class TdrAssessmentRepository {
     // ADDRESS_TYPE_CODE = '03'
     // ----------------------------------------------------------
 
-    const currentAddressId =
-      this.generateId('Address');
+    const currentAddressId = this.generateId('Address');
 
     if (customer.currentAddressSameAsIdCard) {
       await this.insertAddress(
@@ -281,8 +265,7 @@ export class TdrAssessmentRepository {
     // ADDRESS_TYPE_CODE = '04'
     // ----------------------------------------------------------
 
-    const workAddressId =
-      this.generateId('Address');
+    const workAddressId = this.generateId('Address');
 
     if (customer.workplaceAddress) {
       await this.insertAddress(
@@ -400,8 +383,7 @@ export class TdrAssessmentRepository {
         provCode: address.provCode,
         postalCode: address.postalCode,
         locationCode: address.postalCodeLookup,
-        remark:
-          address.workplaceDescription ?? null,
+        remark: address.workplaceDescription ?? null,
       },
     );
   }
@@ -424,8 +406,7 @@ export class TdrAssessmentRepository {
     files: ResolvedTdrFiles,
     writtenFiles: string[],
   ): Promise<void> {
-    const photos =
-      request.productInformation?.motorcyclePhoto ?? [];
+    const photos = request.productInformation?.motorcyclePhoto ?? [];
 
     for (const photo of photos) {
       const photoTypeCode = photo.photoType;
@@ -444,19 +425,16 @@ export class TdrAssessmentRepository {
       // from user input, so it is always a safe file name)
       // --------------------------------------------------------
 
-      const extension =
-        this.resolveFileExtension(originalName);
+      const extension = this.resolveFileExtension(originalName);
 
-      const fileName =
-        `${photoTypeCode}.${extension}`;
+      const fileName = `${photoTypeCode}.${extension}`;
 
-      const fullPath =
-        await this.fileStorage.saveFile(
-          reqId,
-          'T_MOTORCYCLE_PHOTO',
-          fileName,
-          uploadedFile.buffer,
-        );
+      const fullPath = await this.fileStorage.saveFile(
+        reqId,
+        'T_MOTORCYCLE_PHOTO',
+        fileName,
+        uploadedFile.buffer,
+      );
 
       // If a later DB operation fails, the service deletes this file.
       writtenFiles.push(fullPath);
@@ -465,8 +443,7 @@ export class TdrAssessmentRepository {
       // Insert database record
       // --------------------------------------------------------
 
-      const motorcyclePhotoId =
-        this.generateId('Photo');
+      const motorcyclePhotoId = this.generateId('Photo');
 
       await this.databaseService.executeOnConnection(
         connection,
@@ -509,6 +486,58 @@ export class TdrAssessmentRepository {
     }
   }
 
+  /**
+   * Insert financial (income) assessment details.
+   *
+   * estimatePayment contains:
+   *
+   *   - <MONTHLY_INCOME>
+   */
+
+  async insertEstimateIncome(
+    connection: Connection,
+    reqId: string,
+    request: CreateTdrAssessmentDto,
+  ): Promise<void> {
+    const incomes = request.estimateIncome.incomes;
+
+    for (const income of Object.values(incomes)) {
+
+      const financialId = this.generateId('Finalcial');
+
+      await connection.execute(
+        `
+        INSERT INTO MOBILEMPLS.T_FINANCIAL_ASSESSMENT_DTL (
+            DETAIL_ID,
+            REQ_ID,
+            ITEM_ID,
+            REMARK,
+            AMOUNT,
+            CREATED_DATE
+          )
+          VALUES (
+            :detailId,
+            :reqId,
+            :itemId,
+            :remark,
+            :amount,
+            SYSDATE
+          )
+        `,
+        {
+          detailId: financialId,
+          reqId,
+
+          itemId: income.itemId,
+
+          remark: income.remark ?? null,
+
+          amount: income.amount ?? 0,
+        },
+      );
+    }
+  }
+
   // ============================================================
   // Financial Assessment
   // ============================================================
@@ -526,8 +555,7 @@ export class TdrAssessmentRepository {
     reqId: string,
     request: CreateTdrAssessmentDto,
   ): Promise<void> {
-    const estimatePayment =
-      request.estimatePayment;
+    const estimatePayment = request.estimatePayment;
 
     if (!estimatePayment) {
       return;
@@ -567,8 +595,7 @@ export class TdrAssessmentRepository {
         continue;
       }
 
-      const financialId =
-        this.generateId('Finalcial');
+      const financialId = this.generateId('Finalcial');
 
       await this.databaseService.executeOnConnection(
         connection,
@@ -596,11 +623,9 @@ export class TdrAssessmentRepository {
 
           itemId: item.itemId,
 
-          remark:
-            item.remark ?? null,
+          remark: item.remark ?? null,
 
-          amount:
-            item.amount ?? 0,
+          amount: item.amount ?? 0,
         },
       );
     }
@@ -626,14 +651,10 @@ export class TdrAssessmentRepository {
     attachmentTypeIds: Map<string, number>,
     writtenFiles: string[],
   ): Promise<void> {
-    const attachments =
-      request.documentAttachments?.attachments ?? [];
+    const attachments = request.documentAttachments?.attachments ?? [];
 
     for (const attachment of attachments) {
-      const attachmentTypeId =
-        attachmentTypeIds.get(
-          attachment.attachmentCode,
-        );
+      const attachmentTypeId = attachmentTypeIds.get(attachment.attachmentCode);
 
       if (!attachmentTypeId) {
         continue;
@@ -645,11 +666,9 @@ export class TdrAssessmentRepository {
       for (const [index, resolved] of resolvedFiles.entries()) {
         const { file: uploadedFile, originalName } = resolved;
 
-        const attachmentId =
-          this.generateId('Attachment');
+        const attachmentId = this.generateId('Attachment');
 
-        const fileExt =
-          this.resolveFileExtension(originalName);
+        const fileExt = this.resolveFileExtension(originalName);
 
         // ------------------------------------------------------
         // Physical file name is built from the master code + index,
@@ -659,16 +678,14 @@ export class TdrAssessmentRepository {
         // The original name is kept in FILE_NAME.
         // ------------------------------------------------------
 
-        const storedName =
-          `${attachment.attachmentCode}_${index + 1}.${fileExt}`;
+        const storedName = `${attachment.attachmentCode}_${index + 1}.${fileExt}`;
 
-        const fullPath =
-          await this.fileStorage.saveFile(
-            reqId,
-            'T_ATTACHMENT',
-            storedName,
-            uploadedFile.buffer,
-          );
+        const fullPath = await this.fileStorage.saveFile(
+          reqId,
+          'T_ATTACHMENT',
+          storedName,
+          uploadedFile.buffer,
+        );
 
         writtenFiles.push(fullPath);
 
@@ -725,22 +742,14 @@ export class TdrAssessmentRepository {
   // Utility
   // ============================================================
 
-  private toNumber(
-    value: string | number | null | undefined,
-  ): number | null {
-    if (
-      value === null ||
-      value === undefined ||
-      value === ''
-    ) {
+  private toNumber(value: string | number | null | undefined): number | null {
+    if (value === null || value === undefined || value === '') {
       return null;
     }
 
     const numberValue = Number(value);
 
-    return Number.isNaN(numberValue)
-      ? null
-      : numberValue;
+    return Number.isNaN(numberValue) ? null : numberValue;
   }
 
   /**
@@ -751,27 +760,18 @@ export class TdrAssessmentRepository {
    *   "01-รูปหน้ารถ.jpg" -> "jpg"
    *   "id-card.pdf"       -> "pdf"
    */
-  private resolveFileExtension(
-    fileName: string,
-  ): string {
-    const extension = path
-      .extname(fileName)
-      .replace('.', '')
-      .toLowerCase();
+  private resolveFileExtension(fileName: string): string {
+    const extension = path.extname(fileName).replace('.', '').toLowerCase();
 
     // Only plain [a-z0-9] extensions are used to build file names on disk.
-    return /^[a-z0-9]{1,10}$/.test(extension)
-      ? extension
-      : 'bin';
+    return /^[a-z0-9]{1,10}$/.test(extension) ? extension : 'bin';
   }
 
   // ============================================================
   // ID Generator
   // ============================================================
 
-  private generateId(
-    type: IType,
-  ): string {
+  private generateId(type: IType): string {
     const prefixMap: Record<IType, string> = {
       Address: 'ADDR',
       Photo: 'PHOTO',

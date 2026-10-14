@@ -13,7 +13,6 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsRecordOf } from '../../../common/validators/is-record-of.decorator';
 
-
 // ============================================================
 // Address
 // ============================================================
@@ -70,7 +69,6 @@ export class AddressDto {
   postalCodeLookup?: string;
 }
 
-
 // ============================================================
 // Workplace Address
 // ============================================================
@@ -86,7 +84,6 @@ export class WorkplaceAddressDto extends AddressDto {
   @IsString()
   workplaceDescription?: string;
 }
-
 
 // ============================================================
 // Reference Person
@@ -108,7 +105,6 @@ export class ReferencePersonDto {
   @IsString()
   relationship?: string;
 }
-
 
 // ============================================================
 // Customer Information
@@ -213,7 +209,6 @@ export class CustomerInformationDto {
   reference2!: ReferencePersonDto;
 }
 
-
 // ============================================================
 // Motorcycle Photo
 // ============================================================
@@ -239,7 +234,6 @@ export class MotorcyclePhotoDto {
   @IsString()
   fileName?: string;
 }
-
 
 // ============================================================
 // Product Information
@@ -338,12 +332,15 @@ export class ProductInformationDto {
   documentAttachments?: ProductDocumentAttachmentRefDto[];
 }
 
-
 // ============================================================
 // Estimate Income
 // ============================================================
 
 export class IncomeDetailDto {
+  @ApiProperty({ example: '1' })
+  @IsString()
+  itemId!: string;
+
   @ApiProperty({ example: 25000 })
   @IsNumber()
   amount!: number;
@@ -354,16 +351,17 @@ export class IncomeDetailDto {
   remark?: string | null;
 }
 
-
 export class EstimateIncomeDto {
   @ApiProperty({
     description: 'Map of income code to income detail',
     example: {
       PRIMARY_INCOME: {
+        itemId: '1',
         amount: 25000,
         remark: null,
       },
       EXTRA_INCOME: {
+        itemId: '2',
         amount: 10000,
         remark: null,
       },
@@ -373,7 +371,6 @@ export class EstimateIncomeDto {
   @IsRecordOf(() => IncomeDetailDto)
   incomes!: Record<string, IncomeDetailDto>;
 }
-
 
 // ============================================================
 // Estimate Payment
@@ -393,7 +390,6 @@ export class PaymentDetailDto {
   @IsString()
   remark?: string | null;
 }
-
 
 export class EstimatePaymentDto {
   @ApiProperty({
@@ -437,7 +433,6 @@ export class EstimatePaymentDto {
   DEBT_OBLIGATION!: Record<string, PaymentDetailDto>;
 }
 
-
 // ============================================================
 // Restructure Reason
 // ============================================================
@@ -457,7 +452,6 @@ export class RestructureReasonItemDto {
   otherReason?: string;
 }
 
-
 export class RestructureReasonDto {
   @ApiProperty({
     type: () => RestructureReasonItemDto,
@@ -468,7 +462,6 @@ export class RestructureReasonDto {
   @Type(() => RestructureReasonItemDto)
   reasons!: RestructureReasonItemDto[];
 }
-
 
 // ============================================================
 // Document Attachments
@@ -501,7 +494,6 @@ export class AttachmentFileDto {
   remark?: string;
 }
 
-
 // Actual binaries come through the multipart field `documentAttach`.
 // An uploaded file belongs to the attachment whose attachmentTypeId equals the
 // number its file name starts with ("1.pdf", "1-id-card.pdf" -> attachmentTypeId "1").
@@ -533,7 +525,6 @@ export class AttachmentDto {
   files?: AttachmentFileDto[] | null;
 }
 
-
 export class DocumentAttachmentsDto {
   @ApiProperty({
     type: () => AttachmentDto,
@@ -544,7 +535,6 @@ export class DocumentAttachmentsDto {
   @Type(() => AttachmentDto)
   attachments!: AttachmentDto[];
 }
-
 
 // ============================================================
 // Main Create DTO

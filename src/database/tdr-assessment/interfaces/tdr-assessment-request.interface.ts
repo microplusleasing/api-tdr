@@ -101,6 +101,7 @@ export interface EstimateIncome {
 }
 
 export interface IncomeDetail {
+  itemId: number;
   amount: number;
   remark: string | null;
 }

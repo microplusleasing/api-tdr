@@ -67,11 +67,11 @@ export const TDR_ASSESSMENT_SWAGGER_EXAMPLE = {
   },
   estimateIncome: {
     incomes: {
-      PRIMARY_INCOME: { amount: 25000, remark: null },
-      EXTRA_INCOME: { amount: 10000, remark: null },
-      BUSINESS_INCOME: { amount: 5000, remark: null },
-      INVESTMENT_INCOME: { amount: 2500, remark: null },
-      OTHER_INCOME: { amount: 500, remark: 'ขายกล้วยด่าง' },
+      PRIMARY_INCOME: { itemId: '1', amount: 25000, remark: null },
+      EXTRA_INCOME: { itemId: '2', amount: 10000, remark: null },
+      BUSINESS_INCOME: { itemId: '3', amount: 5000, remark: null },
+      INVESTMENT_INCOME: { itemId: '4', amount: 2500, remark: null },
+      OTHER_INCOME: { itemId: '5', amount: 500, remark: 'ขายกล้วยด่าง' },
     },
   },
   estimatePayment: {
