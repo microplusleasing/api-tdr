@@ -5,9 +5,13 @@ import {
   Get,
   Param,
   Post,
+  Req,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
+
+import type { Request } from 'express';
+
 import {
   ApiBody,
   ApiConsumes,
@@ -16,6 +20,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
 import { TdrAssessmentService } from './tdr-assessment.service';
@@ -23,7 +28,9 @@ import { ContractExistResponseDto } from './dto/tdr-assessment.dto';
 import { CreateTdrAssessmentMultipartDto } from './dto/create-tdr-assessment-multipart.dto';
 import { TdrAssessmentRequestValidator } from './validators/tdr-assessment-request.validator';
 import { TdrAssessmentFileValidator } from './validators/tdr-assessment-file.validator';
+
 import type { TdrUploadedFiles } from './validators/tdr-assessment-file.validator';
+
 import {
   ALLOWED_UPLOAD_MIME_TYPES,
   FORM_FIELD_DOCUMENT_ATTACH,
@@ -120,14 +127,29 @@ export class TdrAssessmentController {
   async create(
     @Body() body: CreateTdrAssessmentMultipartDto,
     @UploadedFiles() files: TdrUploadedFiles,
+    @Req() req: Request,
   ) {
     // 1. `data` (JSON string) -> validated DTO
     const request = await this.requestValidator.parse(body.data);
 
-    // 2. attached files must agree with the names declared in `data`
+    // 2. Attached files must agree with the names declared in `data`
     const resolvedFiles = await this.fileValidator.resolve(request, files);
 
-    // 3. database work + saving files
-    return this.tdrAssessmentService.create(request, resolvedFiles);
+    // 3. Extract client metadata
+    const ipAddress =
+      req.ip ||
+      req.socket.remoteAddress ||
+      null;
+
+    const deviceInfo =
+      req.get('user-agent') || null;
+
+    // 4. Database work + saving files
+    return this.tdrAssessmentService.create(
+      request,
+      resolvedFiles,
+      ipAddress,
+      deviceInfo,
+    );
   }
 }

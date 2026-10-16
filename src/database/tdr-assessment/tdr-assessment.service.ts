@@ -73,7 +73,12 @@ export class TdrAssessmentService {
   // Create TDR Assessment
   // ============================================================
 
-  async create(request: CreateTdrAssessmentDto, files: ResolvedTdrFiles) {
+  async create(
+    request: CreateTdrAssessmentDto,
+    files: ResolvedTdrFiles,
+    ipAddress: string | null,
+    deviceInfo: string | null,
+  ) {
     const reqId = this.generateReqId();
 
     /**
@@ -93,7 +98,7 @@ export class TdrAssessmentService {
         // 1. Validate Contract
         // ======================================================
 
-        await this.step(reqId, '[1/8] Contract validation', () =>
+        await this.step(reqId, '[1/10] Contract validation', () =>
           this.contractValidator.validate(
             connection,
             request.customerInformation.contractNo,
@@ -106,7 +111,7 @@ export class TdrAssessmentService {
 
         const masterContext = await this.step(
           reqId,
-          '[2/8] Master validation',
+          '[2/10] Master validation',
           () => this.masterValidator.validate(connection, request),
         );
 
@@ -114,7 +119,7 @@ export class TdrAssessmentService {
         // 3. Insert Customer Request
         // ======================================================
 
-        await this.step(reqId, '[3/8] Insert customer request', () =>
+        await this.step(reqId, '[3/10] Insert customer request', () =>
           this.repository.insertCustomerRequest(connection, reqId, request),
         );
 
@@ -122,7 +127,7 @@ export class TdrAssessmentService {
         // 4. Insert Customer Addresses
         // ======================================================
 
-        await this.step(reqId, '[4/8] Insert customer addresses', () =>
+        await this.step(reqId, '[4/10] Insert customer addresses', () =>
           this.repository.insertCustomerAddresses(connection, reqId, request),
         );
 
@@ -130,7 +135,7 @@ export class TdrAssessmentService {
         // 5. Insert Motorcycle Photos
         // ======================================================
 
-        await this.step(reqId, '[5/8] Insert motorcycle photos', () =>
+        await this.step(reqId, '[5/10] Insert motorcycle photos', () =>
           this.repository.insertMotorcyclePhotos(
             connection,
             reqId,
@@ -144,31 +149,41 @@ export class TdrAssessmentService {
         // 6. Insert Financial Assessment (Estimate Income)
         // ======================================================
 
-        await this.step(reqId, '[6/8] Insert financial assessment (Estimate Income)', () =>
-          this.repository.insertEstimateIncome(
-            connection,
-            reqId,
-            request,
-          ),
+        await this.step(
+          reqId,
+          '[6/10] Insert financial assessment (Estimate Income)',
+          () =>
+            this.repository.insertEstimateIncome(connection, reqId, request),
         );
 
         // ======================================================
         // 7. Insert Financial Assessment (Estimate Income)
         // ======================================================
 
-        await this.step(reqId, '[7/8] Insert financial assessment (Estimate Payment)', () =>
-          this.repository.insertFinancialAssessment(
-            connection,
-            reqId,
-            request,
-          ),
+        await this.step(
+          reqId,
+          '[7/10] Insert financial assessment (Estimate Payment)',
+          () =>
+            this.repository.insertFinancialAssessment(
+              connection,
+              reqId,
+              request,
+            ),
         );
 
         // ======================================================
-        // 8. Insert Attachments
+        // 8. Insert Customer Reasons
         // ======================================================
 
-        await this.step(reqId, '[8/8] Insert attachments', () =>
+        await this.step(reqId, '[8/10] Insert customer reasons', () =>
+          this.repository.insertCustomerReasons(connection, reqId, request),
+        );
+
+        // ======================================================
+        // 9. Insert Attachments
+        // ======================================================
+
+        await this.step(reqId, '[9/10] Insert attachments', () =>
           this.repository.insertAttachments(
             connection,
             reqId,
@@ -176,6 +191,19 @@ export class TdrAssessmentService {
             files,
             masterContext.attachmentTypeIds,
             writtenFiles,
+          ),
+        );
+
+        // ======================================================
+        // 10. Insert Request Status Log
+        // ======================================================
+
+        await this.step(reqId, '[10/10] Insert request status log', () =>
+          this.repository.insertRequestStatusLog(
+            connection,
+            reqId,
+            ipAddress,
+            deviceInfo,
           ),
         );
       });

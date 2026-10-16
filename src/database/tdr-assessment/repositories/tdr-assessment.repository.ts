@@ -9,7 +9,7 @@ import { FileStorageService } from '../../../common/file-storage/file-storage.se
 import { CreateTdrAssessmentDto } from '../dto/create-tdr-assessment.dto';
 import { ResolvedTdrFiles } from '../validators/tdr-assessment-file.validator';
 
-type IType = 'Address' | 'Photo' | 'Finalcial' | 'Attachment';
+type IType = 'Address' | 'Photo' | 'Finalcial' | 'Attachment' | 'Log' | 'Reason';
 
 @Injectable()
 export class TdrAssessmentRepository {
@@ -489,7 +489,7 @@ export class TdrAssessmentRepository {
   /**
    * Insert financial (income) assessment details.
    *
-   * estimatePayment contains:
+   * estimateIncome contains:
    *
    *   - <MONTHLY_INCOME>
    */
@@ -502,7 +502,6 @@ export class TdrAssessmentRepository {
     const incomes = request.estimateIncome.incomes;
 
     for (const income of Object.values(incomes)) {
-
       const financialId = this.generateId('Finalcial');
 
       await connection.execute(
@@ -629,6 +628,108 @@ export class TdrAssessmentRepository {
         },
       );
     }
+  }
+
+  // ============================================================
+  // T_CUSTOMER_REASON
+  // ============================================================
+
+  async insertCustomerReasons(
+    connection: Connection,
+    reqId: string,
+    request: CreateTdrAssessmentDto,
+  ): Promise<void> {
+    const reasons = request.restructureReason?.reasons;
+
+    if (!reasons?.length) {
+      return;
+    }
+
+    for (const reason of reasons) {
+      if (reason.selected !== true) {
+        continue;
+      }
+
+      const reasonId = this.generateId('Reason');
+
+      await this.databaseService.executeOnConnection(
+        connection,
+        `
+        INSERT INTO MOBILEMPLS.T_CUSTOMER_REASON (
+          ID,
+          REQ_ID,
+          REASON_CODE,
+          OTHER_REASON
+        )
+        VALUES (
+          :reasonId,
+          :reqId,
+          :reasonCode,
+          :otherReason
+        )
+      `,
+        {
+          reasonId,
+          reqId,
+          reasonCode: reason.reasonCode,
+          otherReason: reason.otherReason?.trim() || null,
+        },
+      );
+    }
+  }
+
+  // ============================================================
+  // T_REQUEST_STATUS_LOG
+  // ============================================================
+
+  /**
+   * Insert request status.
+   *
+   * default from this API is set FROM_STATUS_CODE to null and TO_STATUS_CODE SUBMITED
+   *
+   */
+  async insertRequestStatusLog(
+    connection: Connection,
+    reqId: string,
+    ipAddress: string | null,
+    deviceInfo: string | null,
+  ): Promise<void> {
+    const logId = this.generateId('Log');
+
+    await this.databaseService.executeOnConnection(
+      connection,
+      `
+      INSERT INTO MOBILEMPLS.T_REQUEST_STATUS_LOG (
+        LOG_ID,
+        REQ_ID,
+        FROM_STATUS_CODE,
+        TO_STATUS_CODE,
+        IP_ADDRESS,
+        DEVICE_INFO,
+        CREATED_BY,
+        CREATED_DATE
+      )
+      VALUES (
+        :logId,
+        :reqId,
+        :fromStatusCode,
+        :toStatusCode,
+        :ipAddress,
+        :deviceInfo,
+        :createdBy,
+        SYSDATE
+      )
+    `,
+      {
+        logId,
+        reqId,
+        fromStatusCode: null,
+        toStatusCode: 'SUBMITTED',
+        ipAddress,
+        deviceInfo,
+        createdBy: 'CUSTOMER',
+      },
+    );
   }
 
   // ============================================================
@@ -777,6 +878,8 @@ export class TdrAssessmentRepository {
       Photo: 'PHOTO',
       Finalcial: 'FIN',
       Attachment: 'ATM',
+      Log: 'LOG',
+      Reason: 'REAS'
     };
 
     return `${prefixMap[type]}-${crypto.randomUUID()}`;
