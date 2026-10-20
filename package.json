@@ -9,6 +9,7 @@
     "copy": "copy \"package.json\" \"dist/\"&&cd dist&&mkdir static&&cd ..&&copy \"src/static/\" \"dist/static/\"",
     "build": "nest build",
     "build:dev": "set STAGE=dev&&nest build && npm run copy && npm run node_modules:dev",
+    "build:uat": "set STAGE=uat&&nest build && npm run copy && npm run node_modules:uat",
     "build:prod": "set STAGE=prod&&nest build && npm run copy && npm run node_modules:prod",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
